@@ -23,42 +23,42 @@ class CorsSettings(BaseSettings):
 
 
 class DBSettings(BaseSettings):
-    name: str = Field(alias="db_name")
-    user: str = Field(alias="db_user")
-    password: str = Field(alias="db_password")
-    host: str = Field(alias="db_host")
-    port: int = Field(alias="db_port")
-    scheme: str = Field(alias="db_scheme")
+    name: str = Field(alias="db_name", default="")
+    user: str = Field(alias="db_user", default="")
+    password: str = Field(alias="db_password", default="")
+    host: str = Field(alias="db_host", default="")
+    port: int = Field(alias="db_port", default=5432)
+    scheme: str = Field(alias="db_scheme", default="postgresql")
     url: str | None = Field(alias="db_url", default=None)
 
     @field_validator("url")
-@classmethod
-def assemble_db_url(
-    cls, v: str | None, validation_info: ValidationInfo
-) -> str:
-    if v is not None:
-        return v
-    
-    # Спробувати отримати DATABASE_URL з environment
-    import os
-    database_url = os.getenv("DATABASE_URL")
-    if database_url:
-        # Railway надає postgres://, а нам потрібно postgresql://
-        if database_url.startswith("postgres://"):
-            database_url = database_url.replace("postgres://", "postgresql://", 1)
-        return database_url
-    
-    # Якщо DATABASE_URL немає, збираємо з окремих частин
-    values = validation_info.data
-    url = PostgresDsn.build(
-        scheme=values.get("scheme", "postgresql"),
-        username=values.get("user"),
-        password=values.get("password"),
-        host=values.get("host"),
-        port=values.get("port", 5432),
-        path=values.get("name", ""),
-    )
-    return str(url)
+    @classmethod
+    def assemble_db_url(
+        cls, v: str | None, validation_info: ValidationInfo
+    ) -> str:
+        if v is not None:
+            return v
+        
+        # Спробувати отримати DATABASE_URL з environment
+        import os
+        database_url = os.getenv("DATABASE_URL")
+        if database_url:
+            # Railway надає postgres://, а нам потрібно postgresql://
+            if database_url.startswith("postgres://"):
+                database_url = database_url.replace("postgres://", "postgresql://", 1)
+            return database_url
+        
+        # Якщо DATABASE_URL немає, збираємо з окремих частин
+        values = validation_info.data
+        url = PostgresDsn.build(
+            scheme=values.get("scheme", "postgresql"),
+            username=values.get("user"),
+            password=values.get("password"),
+            host=values.get("host"),
+            port=values.get("port", 5432),
+            path=values.get("name", ""),
+        )
+        return str(url)
 
 
 class CelerySettings(BaseSettings):
@@ -72,7 +72,7 @@ class CelerySettings(BaseSettings):
 
 class CacheSettings(BaseSettings):
     use_redis: bool = Field(alias="cache_use_redis", default=True)
-    redis_url: str
+    redis_url: str = Field(alias="cache_redis_url", default="")
 
 
 class StaticFilesSettings(BaseSettings):
@@ -96,8 +96,8 @@ class PaginationSettings(BaseSettings):
 class SMTPSettings(BaseSettings):
     host: str = Field(alias="smtp_host", default="smtp.gmail.com")
     port: int = Field(alias="smtp_port", default=587)
-    username: str = Field(alias="smtp_username")
-    password: str = Field(alias="smtp_password")
+    username: str = Field(alias="smtp_username", default="")
+    password: str = Field(alias="smtp_password", default="")
 
     @property
     def connection_config(self) -> ConnectionConfig:
@@ -128,12 +128,15 @@ class FrontendSettings(BaseSettings):
     )
     registration_confirm_path: str = Field(
         alias="frontend_registration_confirm_path",
+        default="",
     )
     password_reset_path: str = Field(
         alias="frontend_password_reset_path",
+        default="",
     )
     email_change_confirm_path: str = Field(
         alias="frontend_email_change_confirm_path",
+        default="",
     )
 
     @property
@@ -142,8 +145,8 @@ class FrontendSettings(BaseSettings):
 
 
 class NovaPostSettings(BaseSettings):
-    api_key: str = Field(alias="nova_post_api_key")
-    enter_url: str = Field(alias="nova_post_enter_url")
+    api_key: str = Field(alias="nova_post_api_key", default="")
+    enter_url: str = Field(alias="nova_post_enter_url", default="")
 
 
 class Settings(BaseSettings):
@@ -153,7 +156,7 @@ class Settings(BaseSettings):
     app_domain: str = "localhost:8000"
     app_scheme: str = "http"
     debug: bool = True
-    secret_key: str
+    secret_key: str = Field(default="changeme")
 
     # Cors
     cors: CorsSettings = Field(default_factory=CorsSettings)
