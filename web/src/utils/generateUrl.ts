@@ -1,23 +1,36 @@
-export const generateUrl = (targetUrl: string) => {
-  // Беремо бекенд з env і змінюємо http на https
+// src/utils/generateUrl.ts
+
+export const generateUrl = (targetUrl: string): string => {
+  // Беремо бекенд з env, замінюємо http на https, або ставимо дефолт
   const BACKEND =
     process.env.REACT_APP_BACKEND_LINK?.replace(/^http:\/\//, "https://") ??
     "https://reliktarte-production.up.railway.app";
 
-  const part = "api/v1";
+  // Частина шляху API
+  const API_PART = "api/v1";
 
-  const isDomainNotEndsWithSlash = !BACKEND.endsWith("/");
+  // Перевірка, чи закінчується домен на /
+  const needsSlash = !BACKEND.endsWith("/");
 
-  const validPart = `${isDomainNotEndsWithSlash ? "/" : ""}${
-    !targetUrl.includes(part) ? part : ""
-  }${!targetUrl.startsWith("/") ? "/" : ""}`;
+  // Формуємо повний шлях
+  let path = "";
+  if (!targetUrl.includes(API_PART)) {
+    path += `/${API_PART}`;
+  }
+  if (!targetUrl.startsWith("/")) {
+    path += "/";
+  }
 
-  const secondPart = `${validPart}${targetUrl}`.replaceAll("//", "/");
+  path += targetUrl;
 
-  const url = `${BACKEND}${secondPart}`;
+  // Замінюємо подвійні слеші на один
+  const finalPath = path.replace(/\/{2,}/g, "/");
 
-  console.log("🔍 ALL ENV:", process.env);
-  console.log("🔍 BACKEND_LINK:", process.env.REACT_APP_BACKEND_LINK);
+  // Формуємо фінальний URL
+  const url = `${BACKEND}${finalPath}`;
+
+  console.log("🔍 BACKEND:", BACKEND);
+  console.log("🔍 Generated URL:", url);
 
   return url;
 };
