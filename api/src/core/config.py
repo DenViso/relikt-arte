@@ -19,7 +19,8 @@ from .helpers import DotenvListHelper, load_environment
 class CorsSettings(BaseSettings):
     origins: str = Field(
         alias="cors_origins", 
-        default="http://localhost:3000,https://relikt-arte.vercel.app,https://*.denvisos-projects.vercel.app"
+        # Додайте сюди всі можливі варіації через кому
+        default="http://localhost:3000,http://localhost:5173,https://relikt-arte.vercel.app,https://relikt.vercel.app"
     )
 
     @field_validator("origins")
@@ -127,7 +128,7 @@ class JWTSettings(BaseSettings):
 
 
 class FrontendSettings(BaseSettings):
-    app_scheme: str = Field(alias="frontend_app_scheme", default="http")
+    app_scheme: str = Field(alias="frontend_app_scheme", default="https")
     app_domain: str = Field(
         alias="frontend_app_domain",
         default="localhost:3000",
@@ -159,9 +160,11 @@ class Settings(BaseSettings):
     # App settings
     app_name: str = "Relict Arte API"
     app_version: int = 1
-    app_domain: str = "localhost:8000"
-    app_scheme: str = "http"
-    debug: bool = True
+    # app_domain: str = "localhost:8000"
+    app_domain: str = "reliktarte-production.up.railway.app"
+    app_scheme: str = "https"
+    # debug: bool = True
+    debug: bool = False # На продакшні краще False
     secret_key: str = Field(default="changeme-please-use-secure-key-in-production")
 
     # Cors
