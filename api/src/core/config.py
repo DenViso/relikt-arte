@@ -19,7 +19,7 @@ from .helpers import DotenvListHelper, load_environment
 class CorsSettings(BaseSettings):
     origins: str = Field(
         alias="cors_origins", 
-        default="http://localhost:3000,https://relikt-arte.vercel.app,https://*.vercel.app"
+        default="http://localhost:3000,https://relikt-arte.vercel.app,https://*.denvisos-projects.vercel.app"
     )
 
     @field_validator("origins")
