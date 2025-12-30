@@ -2,11 +2,9 @@ export const generateUrl = (targetUrl: string) => {
   const part = "api/v1";
 
   const isDomainNotEndsWithSlash = !(
-    process.env.REACT_APP_BACKEND_LINK || "https://reliktarte-production.up.railway.app"
-  ).endsWith("/");
-  const validPart = `${isDomainNotEndsWithSlash ? "/" : ""}${
-    !targetUrl.includes(part) ? part : ""
-  }${!targetUrl.startsWith("/") ? "/" : ""}`;
+   const BACKEND =
+  process.env.REACT_APP_BACKEND_LINK?.replace(/^http:\/\//, "https://") ??
+  "https://reliktarte-production.up.railway.app";
 
   const secondPart = `${validPart}${targetUrl}`.replaceAll("//", "/");
   const url = `${
