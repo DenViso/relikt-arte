@@ -111,7 +111,7 @@ const BuySectionProducts = () => {
             }
 
             const newProducts = await getItems(
-                `/api/v1/product/list`,
+                `/api/v1/product/list/`,
                 readyFilters,
                 true,
                 {
