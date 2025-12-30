@@ -1,13 +1,12 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
-from fastapi import FastAPI, APIRouter
+
+from fastapi import FastAPI, APIRouter, Request
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+
 from .middlewares.request_logger import RequestAuditMiddleware
-app.add_middleware(RequestAuditMiddleware)
-
-
-
 from .core.config import settings
 from .core.caching import init_caching
 from .user.router import router as user_router
@@ -19,11 +18,10 @@ from .letter.router import router as letter_router
 
 # Lifespan events
 @asynccontextmanager
-async def lifespan(app: FastAPI):  # noqa
-    # Initialize the cache backend
+async def lifespan(app: FastAPI):
+    # Initialize cache
     init_caching()
     yield
-
 
 
 # App configuration
@@ -33,10 +31,11 @@ app = FastAPI(
     version=str(settings.app_version),
     lifespan=lifespan,
     docs_url="/docs",
-redoc_url="/redoc",
+    redoc_url="/redoc",
 )
 
-
+# Add middlewares
+app.add_middleware(RequestAuditMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -44,17 +43,21 @@ app.add_middleware(
         "http://localhost:3000",
         "https://relikt-c7kep6ss6-denvisos-projects.vercel.app",
     ],
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-    @app.middleware("http")
-async def redirect_https(request, call_next):
+
+# HTTP -> HTTPS redirect middleware
+@app.middleware("http")
+async def redirect_https(request: Request, call_next):
     if request.url.scheme != "https":
-    url = request.url.replace(scheme="https")
-    return RedirectResponse(url)
-return await call_next(request)
+        url = request.url.replace(scheme="https")
+        return RedirectResponse(url)
+    response = await call_next(request)
+    return response
 
 
 # Include routers
@@ -69,14 +72,14 @@ routers: list[APIRouter] = [
 for router in routers:
     app.include_router(router, prefix=f"/api/v{settings.app_version}")
 
-# Mount static directory (optional - only if directory exists)
+
+# Mount static directory if exists
 static_path = Path(settings.static.directory)
 if static_path.exists() and static_path.is_dir():
     app.mount(
         f"/{settings.static.directory}",
         StaticFiles(directory=settings.static.directory),
-        name="static"
+        name="static",
     )
 else:
     print(f"Warning: Static directory '{settings.static.directory}' not found, skipping static files")
-
