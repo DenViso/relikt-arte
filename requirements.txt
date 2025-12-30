@@ -1,0 +1,5 @@
+﻿fastapi
+uvicorn[standard]
+sqlalchemy>=2.0
+asyncpg>=0.30.0
+alembic

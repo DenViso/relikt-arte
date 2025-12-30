@@ -13,8 +13,14 @@ from pydantic_settings import BaseSettings
 from .helpers import DotenvListHelper, load_environment
 
 
+# class CorsSettings(BaseSettings):
+#     origins: str = Field(alias="cors_origins", default=["http://localhost:3000","https://relikt-arte.vercel.app","https://*.vercel.app",])
+
 class CorsSettings(BaseSettings):
-    origins: str = Field(alias="cors_origins", default="http://localhost:3000,http://localhost:5173")
+    origins: str = Field(
+        alias="cors_origins", 
+        default="http://localhost:3000,https://relikt-arte.vercel.app,https://*.vercel.app"
+    )
 
     @field_validator("origins")
     @classmethod
