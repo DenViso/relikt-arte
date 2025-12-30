@@ -5,6 +5,8 @@ from fastapi import FastAPI, APIRouter, Request
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+# Додаємо цей імпорт для правильної роботи за проксі Railway
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from .middlewares.request_logger import RequestAuditMiddleware
 from .core.config import settings
@@ -34,44 +36,30 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# Add middlewares
+# 1. Додаємо Middleware для обробки заголовків проксі (Railway)
+# Це вирішує проблему Mixed Content на рівні протоколу
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+
+# 2. Аудит запитів
 app.add_middleware(RequestAuditMiddleware)
 
+# 3. Налаштування CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[ "http://localhost:5173",          # Vite local
-        "http://127.0.0.1:5173",                      # локально
-        "https://relikt.vercel.app",],         # Vercel], 
-    allow_origin_regex=r"https://.*\.vercel\.app",  # всі фронтенди на vercel
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://relikt.vercel.app",
+        "https://relikt-arte.vercel.app", # Додав ваш основний домен
+    ],
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# HTTP -> HTTPS redirect middleware
-# @app.middleware("http")
-# async def redirect_https(request: Request, call_next):
-    # if request.method == "OPTIONS":
-    #     return await call_next(request)  # пропускаємо preflight
-    # if request.url.scheme != "https":
-    #     url = request.url.replace(scheme="https")
-    #     return RedirectResponse(url=str(url))
-    # response = await call_next(request)
-    # return response
-    
-    
-@app.middleware("http")
-async def redirect_https(request: Request, call_next):
-    if request.method == "OPTIONS":
-        return await call_next(request)
-
-    proto = request.headers.get("x-forwarded-proto")
-    if proto == "http":
-        url = request.url.replace(scheme="https")
-        return RedirectResponse(url=str(url), status_code=307)
-
-    return await call_next(request)
-
+# ПРИМІТКА: Старий блок redirect_https видалено, 
+# бо він конфліктував з HTTPS-проксі Railway.
 
 # Include routers
 routers: list[APIRouter] = [
