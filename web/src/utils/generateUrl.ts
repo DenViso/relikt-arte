@@ -1,18 +1,27 @@
 // src/utils/generateUrl.ts
 
 export const generateUrl = (targetUrl: string): string => {
-  // Беремо бекенд з env, замінюємо http на https, або ставимо дефолт
-  const BACKEND =
-    process.env.REACT_APP_BACKEND_LINK?.replace(/^http:\/\//, "https://") ??
+  // Беремо бекенд з env або дефолт
+  let BACKEND =
+    process.env.REACT_APP_BACKEND_LINK ??
     "https://reliktarte-production.up.railway.app";
 
-  // Частина шляху API
+  // Якщо бекенд не починається з http, додаємо https
+  if (!/^https?:\/\//.test(BACKEND)) {
+    BACKEND = "https://" + BACKEND;
+  }
+
+  // Якщо локально (localhost), дозволяємо http
+  if (window.location.hostname === "localhost") {
+    BACKEND = BACKEND.replace(/^https:\/\//, "http://");
+  } else {
+    // На проді — завжди https
+    BACKEND = BACKEND.replace(/^http:\/\//, "https://");
+  }
+
   const API_PART = "api/v1";
 
-  // Перевірка, чи закінчується домен на /
-  const needsSlash = !BACKEND.endsWith("/");
-
-  // Формуємо повний шлях
+  // Формуємо шлях
   let path = "";
   if (!targetUrl.includes(API_PART)) {
     path += `/${API_PART}`;
@@ -20,13 +29,11 @@ export const generateUrl = (targetUrl: string): string => {
   if (!targetUrl.startsWith("/")) {
     path += "/";
   }
-
   path += targetUrl;
 
   // Замінюємо подвійні слеші на один
   const finalPath = path.replace(/\/{2,}/g, "/");
 
-  // Формуємо фінальний URL
   const url = `${BACKEND}${finalPath}`;
 
   console.log("🔍 BACKEND:", BACKEND);
