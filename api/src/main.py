@@ -4,6 +4,8 @@ from fastapi import FastAPI, APIRouter
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
+
+
 from .core.config import settings
 from .core.caching import init_caching
 from .user.router import router as user_router
@@ -33,11 +35,17 @@ redoc_url="/redoc",
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors.origins,
+    allow_origins=[
+        "http://localhost:3000",
+        "https://relikt-arte.vercel.app",
+    ],
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
 
 # Include routers
 routers: list[APIRouter] = [
