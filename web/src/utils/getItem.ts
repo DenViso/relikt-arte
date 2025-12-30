@@ -1,14 +1,16 @@
 import axios from "axios";
 import { generateUrl } from "./generateUrl";
 
-export const getItem = async (url_part: string, data?: any) => {
+export const getItems = async (url_part: string, params?: any) => {
     let validUrl = generateUrl(url_part);
 
-    if (data) {
-        Object.keys(data).forEach((key) => {
-            validUrl = validUrl.replace(`$${key}`, data[key]);
-        });
+    if (params) {
+        const query = new URLSearchParams(params).toString();
+        if (query) {
+            validUrl += `?${query}`;
+        }
     }
 
-    return await axios.get(validUrl).then((res) => res.data);
+    const response = await axios.get(validUrl);
+    return response.data;
 };
