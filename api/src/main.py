@@ -39,10 +39,11 @@ app.add_middleware(RequestAuditMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "https://relikt-c7kep6ss6-denvisos-projects.vercel.app",
-    ],
+    # allow_origins=[
+    #     "http://localhost:3000",
+    #     "https://relikt-c7kep6ss6-denvisos-projects.vercel.app",
+    # ],
+    allow_origins=["*"],
     allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
