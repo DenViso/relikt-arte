@@ -1,7 +1,9 @@
 import asyncio
 import sys
+import os
 from pathlib import Path
 
+# Додаємо шлях до кореня проекту
 sys.path.insert(0, str(Path(__file__).parent))
 
 from sqlalchemy import select
@@ -15,235 +17,203 @@ try:
     DOCX_AVAILABLE = True
 except ImportError:
     DOCX_AVAILABLE = False
-    print("⚠️  python-docx не встановлено. Опис не буде імпортовано.")
+    print("⚠️ python-docx не встановлено. Описи .docx не будуть зчитані.")
 
-async def import_catalog():
-    """Імпорт товарів з каталогу"""
-    
-    if sys.platform == 'win32':
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    
-    engine = create_async_engine(str(settings.db.url))
-    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    
-    # Шлях до каталогу
+async def import_doors(session, category_id):
+    """Імпорт дверей з трирівневої структури: Клас -> Артикул -> Файли"""
     catalog_path = Path("static/catalog/door")
-    
     if not catalog_path.exists():
         print(f"❌ Папка {catalog_path} не знайдена!")
-        print(f"   Спочатку виконай: xcopy /E /I \"..\\resource\\Katalog\\door\" \"static\\catalog\\door\"")
-        return
+        return 0
     
-    async with async_session() as session:
-        # Отримай або створи категорію "Двері"
-        result = await session.execute(
-            select(Category).where(Category.name == "Двері")
-        )
-        category = result.scalar_one_or_none()
+    count = 0
+    # 1 рівень: Класи (напр., "Клас 2G", "Клас G+")
+    for class_dir in sorted(catalog_path.iterdir()):
+        if not class_dir.is_dir():
+            continue
         
-        if not category:
-            category = Category(
-                name="Двері",
-                is_glass_available=False,
-                have_material_choice=False,
-                have_orientation_choice=False,
-                have_type_of_platband_choice=False
-            )
-            session.add(category)
-            await session.flush()
+        class_name = class_dir.name
+        print(f"\n📁 Обробка класу дверей: {class_name}")
         
-        category_id = category.id
-        count = 0
-        
-        # Пройдись по класах
-        for class_dir in sorted(catalog_path.iterdir()):
-            if not class_dir.is_dir():
+        # 2 рівень: Артикули (напр., "art_14", "art_15")
+        for product_dir in sorted(class_dir.iterdir()):
+            if not product_dir.is_dir():
                 continue
             
-            class_name = class_dir.name
-            print(f"\n📁 Обробка класу: {class_name}")
+            product_name = product_dir.name # Артикул, напр. art_14
             
-            # Пройдись по товарах
-            for product_dir in sorted(class_dir.iterdir()):
-                if not product_dir.is_dir():
-                    continue
-                
-                product_name = product_dir.name
-                
-                # Знайди ВСІ фото
-                photo_files = []
-                for ext in ['.jpg', '.jpeg', '.png', '.webp']:
-                    photo_files.extend(list(product_dir.glob(f"*{ext}")))
-                
-                if not photo_files:
-                    print(f"  ⚠️  {product_name}: немає фото, пропускаю")
-                    continue
-                
-                # Читай опис з docx
-                description_details = []
-                covering_text = None
-                has_glass = False
-                has_orientation = False
-                
-                desc_file = product_dir / "description.docx"
-                if desc_file.exists() and DOCX_AVAILABLE:
-                    try:
-                        doc = Document(desc_file)
-                        lines = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
-                        
-                        # Структура файлу:
-                        # lines[0] = артикул
-                        # lines[1] = модель
-                        # lines[2] = колір
-                        # lines[3] = виріб
-                        # lines[4] = розмір
-                        # lines[5] = сторона відкривання (опціонально)
-                        # lines[6] = скло (опціонально)
-                        
-                        if lines and len(lines) >= 5:
-                            article = lines[0]       # Артикул
-                            model = lines[1]         # Модель
-                            color = lines[2]         # Колір
-                            product_type = lines[3]  # Виріб
-                            size = lines[4]          # Розмір
-                            
-                            description_details = [
-                                {"label": "Артикул", "value": article},
-                                {"label": "Модель", "value": model},
-                                {"label": "Колір", "value": color},
-                                {"label": "Виріб", "value": product_type},
-                                {"label": "Розмір виробу", "value": size}
-                            ]
-                            
-                            covering_text = color  # Колір іде в covering.text
-                            
-                            # Перевір сторону відкривання (6-й рядок = lines[5])
-                            if len(lines) > 5:
-                                orientation_value = lines[5].strip().lower()
-                                if orientation_value in ['праве', 'ліве', 'правий', 'лівий', 'правое', 'левое']:
-                                    description_details.append({"label": "Сторона відкривання", "value": lines[5]})
-                                    has_orientation = True
-                                    
-                                    # Перевір скло (7-й рядок = lines[6])
-                                    if len(lines) > 6:
-                                        description_details.append({"label": "Скло", "value": lines[6]})
-                                        has_glass = True
-                                else:
-                                    # Якщо 6-й рядок не сторона, то це скло
-                                    description_details.append({"label": "Скло", "value": lines[5]})
-                                    has_glass = True
-                                    
-                    except Exception as e:
-                        print(f"  ⚠️  {product_name}: помилка читання опису - {e}")
-                
-                # Створи description з правильною структурою
-                description = {
-                    "uk": f"Двері {class_name} - {product_name}",
-                    "construction": None,
-                    "advantages": [],
-                    "finishing": {
-                        "covering": {
-                            "text": covering_text,
-                            "advantages": []
-                        }
-                    } if covering_text else None,
-                    "text": None,
-                    "details": description_details
-                }
-                
-                # SKU та ціна
-                sku = f"DOOR-{class_name.replace(' ', '-')}-{product_name}"
-                price = 50000  # 500 грн у копійках
-                
-                # Перевір чи існує
-                result = await session.execute(
-                    select(Product).where(Product.sku == sku)
-                )
-                existing_product = result.scalar_one_or_none()
-                
-                if existing_product:
-                    # Оновіть опис та boolean поля
-                    existing_product.description = description
-                    existing_product.have_glass = has_glass
-                    existing_product.orientation_choice = has_orientation
+            # Пошук фото (пріоритет .webp після оптимізації)
+            photo_files = []
+            for ext in ['.webp', '.png', '.jpg', '.jpeg']:
+                photo_files.extend(list(product_dir.glob(f"*{ext}")))
+            
+            if not photo_files:
+                print(f"  ⚠️ {product_name}: немає фото, пропускаю")
+                continue
+
+            # Читання опису з docx
+            description_details = []
+            covering_text = None
+            has_glass = False
+            has_orientation = False
+            
+            desc_file = product_dir / "description.docx"
+            if desc_file.exists() and DOCX_AVAILABLE:
+                try:
+                    doc = Document(desc_file)
+                    lines = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
                     
-                    # Перевір існуючі фото
-                    result = await session.execute(
-                        select(ProductPhoto).where(ProductPhoto.product_id == existing_product.id)
-                    )
-                    existing_photos = result.scalars().all()
-                    existing_photo_paths = {p.photo for p in existing_photos}
-                    
-                    # Додай нові фото
-                    new_photos_count = 0
-                    for idx, photo_file in enumerate(photo_files):
-                        photo_path = f"/static/catalog/door/{class_name}/{product_name}/{photo_file.name}"
+                    if len(lines) >= 5:
+                        description_details = [
+                            {"label": "Артикул", "value": lines[0]},
+                            {"label": "Модель", "value": lines[1]},
+                            {"label": "Колір", "value": lines[2]},
+                            {"label": "Виріб", "value": lines[3]},
+                            {"label": "Розмір", "value": lines[4]}
+                        ]
+                        covering_text = lines[2]
                         
-                        if photo_path not in existing_photo_paths:
-                            photo = ProductPhoto(
-                                product_id=existing_product.id,
-                                photo=photo_path,
-                                is_main=(idx == 0 and len(existing_photos) == 0),
-                                dependency=None,
-                                with_glass=False,
-                                orientation=None,
-                                type_of_platband=None,
-                                color_id=None,
-                                size_id=None
-                            )
-                            session.add(photo)
-                            new_photos_count += 1
-                    
-                    if new_photos_count > 0:
-                        print(f"  📸 {product_name}: додано {new_photos_count} фото, оновлено опис")
-                    else:
-                        print(f"  ✏️  {product_name}: оновлено опис")
-                    continue
-                
-                # Створи товар
+                        # Додаткові параметри (скло, сторона)
+                        for extra in lines[5:]:
+                            low_extra = extra.lower()
+                            if any(side in low_extra for side in ['праве', 'ліве', 'правий', 'лівий']):
+                                description_details.append({"label": "Сторона", "value": extra})
+                                has_orientation = True
+                            else:
+                                description_details.append({"label": "Скло", "value": extra})
+                                has_glass = True
+                except Exception as e:
+                    print(f"  ⚠️ {product_name}: помилка читання docx - {e}")
+
+            # Формування JSON опису
+            description = {
+                "uk": f"Двері {class_name} - {product_name}",
+                "details": description_details,
+                "finishing": {"covering": {"text": covering_text}} if covering_text else None
+            }
+            
+            # Унікальний SKU
+            sku = f"DOOR-{class_name.replace(' ', '-')}-{product_name}".upper()
+            
+            # Перевірка наявності в БД
+            result = await session.execute(select(Product).where(Product.sku == sku))
+            product = result.scalar_one_or_none()
+            
+            if not product:
                 product = Product(
                     name=f"{class_name} {product_name}",
                     sku=sku,
-                    price=price,
-                    description=description,
-                    category_id=category_id,
-                    have_glass=has_glass,
-                    material_choice=False,
-                    type_of_platband_choice=False,
-                    orientation_choice=has_orientation
+                    price=50000,
+                    category_id=category_id
                 )
-                
                 session.add(product)
                 await session.flush()
-                
-                # Створи ВСІ фото
-                for idx, photo_file in enumerate(photo_files):
-                    photo_path = f"/static/catalog/door/{class_name}/{product_name}/{photo_file.name}"
-                    
-                    photo = ProductPhoto(
+            
+            product.description = description
+            product.have_glass = has_glass
+            product.orientation_choice = has_orientation
+
+            # Оновлення фото
+            result = await session.execute(select(ProductPhoto).where(ProductPhoto.product_id == product.id))
+            existing_paths = {p.photo for p in result.scalars().all()}
+            
+            for idx, f in enumerate(photo_files):
+                # Формуємо шлях для вебу
+                web_path = f"/static/catalog/door/{class_name}/{product_name}/{f.name}"
+                if web_path not in existing_paths:
+                    new_photo = ProductPhoto(
                         product_id=product.id,
-                        photo=photo_path,
-                        is_main=(idx == 0),
-                        dependency=None,
-                        with_glass=False,
-                        orientation=None,
-                        type_of_platband=None,
-                        color_id=None,
-                        size_id=None
+                        photo=web_path,
+                        is_main=(idx == 0 and not existing_paths)
                     )
-                    session.add(photo)
-                
-                count += 1
-                print(f"  ✅ {product_name}: додано з {len(photo_files)} фото")
+                    session.add(new_photo)
+            
+            count += 1
+            print(f"  ✅ {product_name}: оброблено")
+            
+    return count
+
+async def import_mouldings(session, category_id):
+    """Імпорт молдингів (дворівнева структура)"""
+    catalog_path = Path("static/catalog/mouldings")
+    if not catalog_path.exists(): return 0
+    
+    count = 0
+    for product_dir in sorted(catalog_path.iterdir()):
+        if not product_dir.is_dir(): continue
+        
+        product_name = product_dir.name
+        photo_files = []
+        for ext in ['.webp', '.png', '.jpg']:
+            photo_files.extend(list(product_dir.glob(f"*{ext}")))
+            
+        if not photo_files: continue
+        
+        sku = f"MLD-{product_name}".upper()
+        result = await session.execute(select(Product).where(Product.sku == sku))
+        product = result.scalar_one_or_none()
+        
+        if not product:
+            product = Product(name=f"Молдинг {product_name}", sku=sku, price=15000, category_id=category_id)
+            session.add(product)
+            await session.flush()
+            
+        # Фото для молдингів
+        result = await session.execute(select(ProductPhoto).where(ProductPhoto.product_id == product.id))
+        existing_paths = {p.photo for p in result.scalars().all()}
+        
+        for f in photo_files:
+            web_path = f"/static/catalog/mouldings/{product_name}/{f.name}"
+            if web_path not in existing_paths:
+                session.add(ProductPhoto(product_id=product.id, photo=web_path, is_main=True))
+        
+        count += 1
+        print(f"  ✅ Молдинг {product_name}: додано")
+        
+    return count
+
+async def main():
+    # Отримуємо URL бази даних безпосередньо як рядок
+    db_url = str(settings.db.url)
+    
+    # Переконуємося, що використовується правильний драйвер для асинхронності
+    if 'postgresql://' in db_url and 'asyncpg' not in db_url:
+        db_url = db_url.replace('postgresql://', 'postgresql+asyncpg://')
+    
+    engine = create_async_engine(db_url)
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    
+    async with async_session() as session:
+        # Отримуємо або створюємо категорії
+        res = await session.execute(select(Category).where(Category.name == "Двері"))
+        cat_door = res.scalar_one_or_none()
+        if not cat_door:
+            cat_door = Category(
+                name="Двері", 
+                is_glass_available=True, 
+                have_orientation_choice=True
+            )
+            session.add(cat_door)
+            await session.flush()
+            
+        res = await session.execute(select(Category).where(Category.name == "Молдинги"))
+        cat_mld = res.scalar_one_or_none()
+        if not cat_mld:
+            cat_mld = Category(name="Молдинги")
+            session.add(cat_mld)
+            await session.flush()
+
+        print("🚀 Початок імпорту...")
+        # Виклик функцій імпорту, які ми адаптували під трирівневу структуру
+        d_count = await import_doors(session, cat_door.id)
+        m_count = await import_mouldings(session, cat_mld.id)
         
         await session.commit()
-        print(f"\n🎉 Імпорт завершено! Додано {count} нових товарів")
+        print(f"\n🎉 ЗАВЕРШЕНО! Дверей оброблено: {d_count}, Молдингів: {m_count}")
 
 if __name__ == "__main__":
-    import asyncio
-    import sys
-    
-    if sys.platform == 'win32':
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    
-    asyncio.run(import_catalog())
+    # Для Python 3.14+ та WindowsSelectorEventLoopPolicy краще використовувати стандартний запуск
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
