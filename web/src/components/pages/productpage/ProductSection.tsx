@@ -11,7 +11,7 @@ import {
   ProductType,
 } from "../../../types/productsRelatedTypes";
 import { getItem } from "../../../utils/getItem";
-import { generateUrl } from "../../../utils/generateUrl"; 
+import { generateUrl } from "../../../utils/generateUrl";
 import { addCartItem } from "../../../utils/handleCart";
 import Button from "../../UI/Button";
 import DropDown from "../../UI/DropDown";
@@ -80,9 +80,9 @@ const ProductSection = () => {
     const setUpPhotos = () => {
       if (product.photos && product.photos.length > 0) {
         setProductPhotos(product.photos);
-        const mainPhoto = product.photos.find(
-          (p: ProductPhotoType) => p.is_main
-        ) || product.photos[0]; 
+        const mainPhoto =
+          product.photos.find((p: ProductPhotoType) => p.is_main) ||
+          product.photos[0];
         setCurrentPhoto(mainPhoto?.photo || "");
       }
     };
@@ -180,7 +180,9 @@ const ProductSection = () => {
                         { name: "Присутнє", value: true },
                         { name: "Відсутнє", value: false },
                       ]}
-                      onChosen={(name, val) => onChosen(name, val, "have_glass")}
+                      onChosen={(name, val) =>
+                        onChosen(name, val, "have_glass")
+                      }
                     />
                     {currentValues.with_glass && (
                       <DropDown
@@ -190,7 +192,9 @@ const ProductSection = () => {
                           url: "api/v1/product/related/product_glass_color/list/",
                           labelKey: "name",
                         }}
-                        onChosen={(name, val) => onChosen(name, val, "color_id")}
+                        onChosen={(name, val) =>
+                          onChosen(name, val, "color_id")
+                        }
                       />
                     )}
                   </>
