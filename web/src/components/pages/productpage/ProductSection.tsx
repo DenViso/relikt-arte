@@ -105,7 +105,8 @@ const ProductSection = () => {
       data.product_id = product.id;
       if (data?.with_glass === false) delete data.glass_color_id;
       await addCartItems(data);
-    }console.log(product_id, product);
+    }
+    log(product_id, product);
   };
 
 
