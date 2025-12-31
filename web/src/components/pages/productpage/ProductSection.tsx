@@ -17,6 +17,7 @@ import Button from "../../UI/Button";
 import DropDown from "../../UI/DropDown";
 import Loader from "../../UI/Loader";
 import Path from "../../UI/Path";
+import { log } from "console";
 
 const ProductSection = () => {
   const { product_id } = useParams();
@@ -105,6 +106,9 @@ const ProductSection = () => {
       await addCartItem(data);
     }
   };
+
+console.log(product_id, product);
+
 
   return (
     <div className="product-section">
