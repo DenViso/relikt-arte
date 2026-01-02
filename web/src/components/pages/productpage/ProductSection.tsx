@@ -123,6 +123,18 @@ const ProductSection = () => {
     }
   };
 
+  useEffect(() => {
+  if (product?.photos && product.photos.length > 0) {
+    const mainPhoto = product.photos.find((p) => p.is_main) || product.photos[0];
+    const photoUrl = mainPhoto?.photo || "";
+    
+    console.log("🖼️ Original photo path:", photoUrl);
+    console.log("🔗 Generated URL:", generateUrl(photoUrl));
+    
+    setCurrentPhoto(photoUrl);
+  }
+}, [product]);
+
   return (
     <div className="product-section">
       <Path
