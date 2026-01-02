@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { filtersData } from "../../data/filters";
 import {
@@ -17,278 +17,147 @@ const BuySectionFilters = () => {
     const [maxPrice, setMaxPrice] = useState("");
     const [filtersOptions, setFiltersOptions] = useState<any>({});
     const [currentFilters, setCurrentFilters] = useState<any>([]);
+    const [glassChoiceAvailable, setGlassChoiceAvailable] = useState(false);
+    
     const sidebarRef = useRef<HTMLDivElement>(null);
     const dispatch = useDispatch();
-    const [glassChoiceAvailable, setGlassChoiceAvailable] = useState(false);
+    const currentWidth = useSelector((state: any) => state.ScreenPropertiesReducer.width);
 
-    const currentWidth = useSelector(
-        (state: any) => state.ScreenPropertiesReducer.width
-    );
-
-    const handleFilters = (e: any) => {
-        if (sidebarRef.current) {
-            sidebarRef.current.classList.toggle("active");
-        }
-
-        if (e.currentTarget) {
-            e.currentTarget.classList.toggle("active");
-        }
-    };
-
-    const getCategoryHaveGlass = () => {
-        const categories = currentFilters.filter(
-            (item: any) => item.field === "category_id"
-        );
-
-        if (categories?.length > 0 && categories) {
-            const categoriesGlassAvailability = categories.some(
-                (item: any) => item?.originalObject?.is_glass_available
-            );
-
-            if (categoriesGlassAvailability) {
-                setGlassChoiceAvailable(true);
-                return;
-            }
-        }
-
-        setGlassChoiceAvailable(false);
-    };
-
-    useEffect(() => {
-        let readyFilters = currentFilters.map((filter: any) => {
-            if (filter && JSON.stringify(filter) !== "{}") {
-                if (
-                    Array.isArray(filter) &&
-                    filter.some((value: any) => value === undefined)
-                ) {
-                    return filter;
-                } else {
-                    const keys = Object.keys(filter);
-                    let invalid = false;
-
-                    for (const key of keys) {
-                        if (filter[key] === undefined) {
-                            invalid = true;
-                        }
-                    }
-
-                    if (!invalid) {
-                        return filter;
-                    }
-                }
-            }
-        });
-
-        const clearFilters = () => {
-            const filtersNotDuplicated: any = {};
-            for (const filter of readyFilters) {
-                if (filter.field === "price") {
-                    filtersNotDuplicated[filter.field] = filter;
-                } else {
-                }
-            }
-
-            let newFilters: any = readyFilters.filter(
-                (filter: any) => filter.field !== "price"
-            );
-
-            Object.keys(filtersNotDuplicated).forEach((key: string) => {
-                newFilters.push(filtersNotDuplicated[key]);
-            });
-
-            readyFilters = newFilters;
-        };
-
-        clearFilters();
-
-        getCategoryHaveGlass();
-        if (readyFilters && JSON.stringify(readyFilters) !== "{}") {
-            dispatch(SetFilters(readyFilters));
-        }
+    // Функція перевірки наявності скла в обраних категоріях
+    const checkGlassAvailability = useCallback(() => {
+        const selectedCategories = currentFilters.filter((f: any) => f.field === "category_id");
+        const hasGlass = selectedCategories.some((cat: any) => cat?.originalObject?.is_glass_available);
+        setGlassChoiceAvailable(hasGlass);
     }, [currentFilters]);
 
+    // Завантаження опцій для фільтрів (виконується один раз)
     useEffect(() => {
-        const setUpOptions = async () => {
-            const filtersOptionsFields = filtersData
-                .map((item: any) =>
-                    item.optionsUrl
-                        ? {
-                              field: item.field,
-                              url: item.optionsUrl,
-                              targetKey: item.targetKey,
-                          }
-                        : {
-                              field: item.field,
-                              options: item.options,
-                          }
-                )
-                .filter((item: any) => item);
-
-            if (filtersOptionsFields && filtersOptionsFields.length > 0) {
-                const newOptions: any = {};
-
-                for (const field of filtersOptionsFields) {
-                    const options = field.url
-                        ? await getItems(field.url)
-                        : field.options;
-
-                    if (field.url) {
-                        if (options && options.length > 0) {
-                            const newOption = options.map((option: any) => ({
-                                name: option[field.targetKey],
-                                value: option.id,
-                                field: field.field,
-                                originalObject: option,
+        const loadAllOptions = async () => {
+            const newOptions: any = {};
+            
+            for (const item of filtersData) {
+                if (item.optionsUrl) {
+                    try {
+                        const data = await getItems(item.optionsUrl);
+                        if (data && Array.isArray(data)) {
+                            newOptions[item.field] = data.map((opt: any) => ({
+                                name: opt[item.targetKey || "name"],
+                                value: opt.id,
+                                field: item.field,
+                                originalObject: opt,
                             }));
-
-                            newOptions[field.field] = newOption;
                         }
-                    } else {
-                        const newOption = options.map((option: any) => ({
-                            ...option,
-                            field: field.field,
-                            originalObject: option,
-                        }));
-
-                        newOptions[field.field] = newOption;
+                    } catch (err) {
+                        console.error(`Error loading options for ${item.field}:`, err);
                     }
-                }
-
-                if (JSON.stringify(newOptions) !== "{}") {
-                    setFiltersOptions(newOptions);
+                } else if (item.options) {
+                    newOptions[item.field] = item.options.map((opt: any) => ({
+                        ...opt,
+                        field: item.field,
+                        originalObject: opt,
+                    }));
                 }
             }
+            setFiltersOptions(newOptions);
         };
 
-        setUpOptions();
+        loadAllOptions();
     }, []);
 
+    // Синхронізація фільтрів з Redux
     useEffect(() => {
-        if (minPrice || maxPrice) {
-            let field: any = {};
-            let value;
-            let operation;
+        // Видаляємо дублікати та невалідні значення
+        const validFilters = currentFilters.filter((f: any) => f && Object.keys(f).length > 0);
+        
+        // Перевірка доступності скла
+        checkGlassAvailability();
 
-            const currentMinPrice = +minPrice;
-            const currentMaxPrice = +maxPrice;
+        if (validFilters.length > 0) {
+            dispatch(SetFilters(validFilters));
+        }
+    }, [currentFilters, dispatch, checkGlassAvailability]);
 
-            if (currentMinPrice && currentMaxPrice) {
-                value = [currentMinPrice, currentMaxPrice];
-                operation = RANGE;
-            } else if (currentMinPrice) {
-                value = currentMinPrice;
-                operation = VALUE_MORE_THAN_OR_EQUALS;
-            } else if (currentMaxPrice) {
-                value = currentMaxPrice;
-                operation = VALUE_LESS_THAN_OR_EQUALS;
+    // Обробка зміни ціни
+    useEffect(() => {
+        const cMin = minPrice ? Number(minPrice) : null;
+        const cMax = maxPrice ? Number(maxPrice) : null;
+
+        setCurrentFilters((prev: any) => {
+            // Видаляємо старий фільтр ціни
+            const otherFilters = prev.filter((f: any) => f.field !== "price");
+            
+            if (!cMin && !cMax) return otherFilters;
+
+            // Створюємо новий фільтр ціни
+            const priceFilter: any = { field: "price" };
+            if (cMin && cMax) {
+                priceFilter.value = [cMin, cMax];
+                priceFilter.operation = RANGE;
+            } else if (cMin) {
+                priceFilter.value = cMin;
+                priceFilter.operation = VALUE_MORE_THAN_OR_EQUALS;
+            } else {
+                priceFilter.value = cMax;
+                priceFilter.operation = VALUE_LESS_THAN_OR_EQUALS;
             }
 
-            field = {
-                value,
-                field: "price",
-                operation,
-            };
-
-            setCurrentFilters((prev: any) => [...prev, field]);
-        } else if (!minPrice && !maxPrice) {
-            setCurrentFilters((prev: any) =>
-                prev.filter(
-                    (filter: any) => filter[0] || filter.field !== "price"
-                )
-            );
-        }
+            return [...otherFilters, priceFilter];
+        });
     }, [minPrice, maxPrice]);
+
+    const toggleSidebar = () => {
+        sidebarRef.current?.classList.toggle("active");
+    };
 
     return (
         <>
             {currentWidth <= 900 && (
-                <div className="filters-button" onClick={handleFilters}>
-                    <svg
-                        width="14"
-                        height="6"
-                        viewBox="0 0 14 6"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                    >
-                        <path
-                            d="M12.833 5.33334L6.99967 0.666676L1.16634 5.33334"
-                            stroke="currentColor"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                        />
+                <div className="filters-button" onClick={toggleSidebar}>
+                    <svg width="14" height="6" viewBox="0 0 14 6" fill="none">
+                        <path d="M12.833 5.33334L6.99967 0.666676L1.16634 5.33334" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                 </div>
             )}
 
             <div className="filters-container" ref={sidebarRef}>
                 <p className="upper pre-small black bold">фільтр</p>
+                
                 <div className="filters-price">
                     <p className="upper small black">ціна</p>
                     <div className="filters-price-inputs">
                         <input
                             type="text"
                             value={minPrice}
-                            onChange={(event) =>
-                                handleInputByAllowedSymbols({
-                                    event,
-                                    set: setMinPrice,
-                                })
-                            }
+                            onChange={(e) => handleInputByAllowedSymbols({ event: e, set: setMinPrice })}
                             placeholder="ВІД"
                         />
                         <span></span>
                         <input
                             type="text"
                             value={maxPrice}
-                            onChange={(event) =>
-                                handleInputByAllowedSymbols({
-                                    event,
-                                    set: setMaxPrice,
-                                })
-                            }
+                            onChange={(e) => handleInputByAllowedSymbols({ event: e, set: setMaxPrice })}
                             placeholder="ДО"
                         />
                     </div>
                 </div>
 
-                {filtersData.map((filter: any, index: number) =>
-                    filter.field !== "have_glass" ? (
+                {filtersData.map((filter: any) => {
+                    // Логіка відображення фільтра скла
+                    if (filter.field === "have_glass" && !glassChoiceAvailable) {
+                        return null;
+                    }
+
+                    return (
                         <Filter
-                            key={`filter[${index}]`}
+                            key={filter.field} // Використовуємо унікальне ім'я поля як ключ
                             label={filter.name}
-                            options={
-                                filtersOptions[filter.field] || filter.options
-                            }
+                            options={filtersOptions[filter.field] || filter.options || []}
                             filters={currentFilters}
-                            handleFilter={(data: any) =>
-                                setCurrentFilters(data)
-                            }
-                            {...(filter.field === "have_glass"
-                                ? { type: "radio" }
-                                : {})}
+                            handleFilter={setCurrentFilters}
+                            type={filter.field === "have_glass" ? "radio" : undefined}
                         />
-                    ) : (
-                        <>
-                            {glassChoiceAvailable && (
-                                <Filter
-                                    key={`filter[${index}]`}
-                                    label={filter.name}
-                                    options={
-                                        filtersOptions[filter.field] ||
-                                        filter.options
-                                    }
-                                    filters={currentFilters}
-                                    handleFilter={(data: any) =>
-                                        setCurrentFilters(data)
-                                    }
-                                    {...(filter.field === "have_glass"
-                                        ? { type: "radio" }
-                                        : {})}
-                                />
-                            )}
-                        </>
-                    )
-                )}
+                    );
+                })}
             </div>
         </>
     );

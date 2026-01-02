@@ -18,7 +18,7 @@ import Button from "../../UI/Button";
 import DropDown from "../../UI/DropDown";
 import Loader from "../../UI/Loader";
 import Path from "../../UI/Path";
-import { log } from "console";
+
 
 const ProductSection = () => {
   const { product_id } = useParams();
@@ -40,9 +40,7 @@ const ProductSection = () => {
     const getCurrentProduct = async () => {
       try {
         if (!product) {
-          const newProduct = await getItems("api/v1/product/$id", {
-            id: product_id,
-          });
+          const newProduct = await getItems(`api/v1/product/$id${product_id}`);
           setProduct(newProduct);
         }
       } catch {
@@ -106,7 +104,7 @@ const ProductSection = () => {
       if (data?.with_glass === false) delete data.glass_color_id;
       await addCartItem(data);
     }
-    log(product_id, product);
+    
   };
 
 
@@ -171,7 +169,7 @@ const ProductSection = () => {
                     url: "api/v1/product/related/product_color/list/",
                     labelKey: "name",
                   }}
-                  onChosen={(name, val) => onChosen(name, val, "color_id")}
+                  onChosen={(name:string, val:any) => onChosen(name, val, "color_id")}
                 />
 
                 {allowedSizes?.length > 0 && (
@@ -179,7 +177,7 @@ const ProductSection = () => {
                     label="розмір"
                     field="size_id"
                     options={{ value: allowedSizes, labelKey: "dimensions" }}
-                    onChosen={(name, val) => onChosen(name, val, "size_id")}
+                    onChosen={(name:string, val:any) => onChosen(name, val, "size_id")}
                   />
                 )}
 
@@ -192,7 +190,7 @@ const ProductSection = () => {
                         { name: "Присутнє", value: true },
                         { name: "Відсутнє", value: false },
                       ]}
-                      onChosen={(name, val) =>
+                      onChosen={(name:string, val:any) =>
                         onChosen(name, val, "have_glass")
                       }
                     />
@@ -204,7 +202,7 @@ const ProductSection = () => {
                           url: "api/v1/product/related/product_glass_color/list/",
                           labelKey: "name",
                         }}
-                        onChosen={(name, val) =>
+                        onChosen={(name:string, val:any) =>
                           onChosen(name, val, "color_id")
                         }
                       />

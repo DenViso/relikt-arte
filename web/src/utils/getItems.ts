@@ -6,7 +6,7 @@ import { generateUrl } from "./generateUrl";
 
 export const getItems = async (
     url_part: string,
-    data?: string,
+    data?: any,
     usePagination?: boolean,
     options?: any
 ) => {

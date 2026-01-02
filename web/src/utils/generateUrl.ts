@@ -1,22 +1,41 @@
 export const generateUrl = (targetUrl: string): string => {
-  const base = "https://reliktarte-production.up.railway.app";
-  // || "process.env.REACT_APP_BACKEND_LINK
-  const isLocal = window.location.hostname === "localhost";
-  let finalBase = base.replace(/\/+$/, "");
-  
-  if (isLocal) finalBase = finalBase.replace(/^https:\/\//, "http://");
-  else finalBase = finalBase.replace(/^http:\/\//, "https://");
+  if (!targetUrl) return "";
 
-  // Якщо шлях містить картинку, НЕ додаємо api/v1
-  if (targetUrl.includes("static/")) {
-    const cleanPath = targetUrl.startsWith("/") ? targetUrl : `/${targetUrl}`;
-    return `${finalBase}${cleanPath}`;
+  // ЗАВЖДИ використовуємо https для Railway, навіть з localhost
+  const base = "https://reliktarte-production.up.railway.app";
+  
+  // 1. Очищуємо базу від слешів у кінці
+  const finalBase = base.replace(/\/+$/, "");
+
+  // 2. Формуємо початковий шлях
+  let path = targetUrl.startsWith("/") ? targetUrl : `/${targetUrl}`;
+
+  // 3. Обробка статичних файлів (картинок)
+  if (path.includes("/static/")) {
+  const cleanPath = path.replace("/api/v1", ""); 
+    return `${finalBase}${cleanPath}`.replace(/\/+/g, "/").replace(":/", "://");
   }
 
-  // Для API запитів
-  const API_PART = "api/v1";
-  let path = targetUrl.startsWith("/") ? targetUrl : `/${targetUrl}`;
-  if (!path.includes(API_PART)) path = `/${API_PART}${path}`;
 
-  return `${finalBase}${path}`.replace(/\/+/g, "/").replace(":/", "://");
+
+  // 4. Обробка API запитів
+  const API_PART = "/api/v1";
+  if (!path.includes(API_PART)) {
+    path = `${API_PART}${path}`;
+  }
+
+  // 5. Фінальна збірка URL
+  let fullUrl = `${finalBase}${path}`.replace(/\/+/g, "/").replace(":/", "://");
+    // ... далі йде логіка для API, де ми додаємо слеш
+  if (!fullUrl.endsWith("/")) {
+    fullUrl += "/";
+}
+
+  // 6. ВИРІШАЛЬНИЙ КРОК: додаємо слеш у кінець, якщо його немає
+  // Це запобігає редиректу 307, який блокує CORS
+  if (!fullUrl.endsWith("/")) {
+    fullUrl += "/";
+  }
+
+  return fullUrl;
 };

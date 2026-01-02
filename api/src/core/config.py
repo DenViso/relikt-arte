@@ -20,7 +20,7 @@ class CorsSettings(BaseSettings):
     origins: str = Field(
         alias="cors_origins", 
         # Додайте сюди всі можливі варіації через кому
-        default="http://localhost:3000,http://localhost:5173,https://relikt-arte.vercel.app,https://relikt.vercel.app"
+        default="https://localhost:3000,http://localhost:5173,https://relikt-arte.vercel.app,https://relikt.vercel.app"
     )
 
     @field_validator("origins")
