@@ -26,9 +26,18 @@ export const generateUrl = (targetUrl: string): string => {
 
   let fullUrl = `${cleanBase}${path}`.replace(/([^:]\/)\/+/g, "$1");
 
-  // ВАЖЛИВО: Додаємо слеш тільки якщо НЕМАЄ query параметрів
-  if (!fullUrl.includes("?") && !fullUrl.endsWith("/")) {
-    fullUrl += "/";
+  // ВАЖЛИВО: Додаємо слеш ПЕРЕД query параметрами
+  if (fullUrl.includes("?")) {
+    // Є query параметри - додаємо слеш перед ними
+    const [urlPath, queryString] = fullUrl.split("?");
+    if (!urlPath.endsWith("/")) {
+      fullUrl = `${urlPath}/?${queryString}`;
+    }
+  } else {
+    // Немає query параметрів - додаємо слеш в кінець
+    if (!fullUrl.endsWith("/")) {
+      fullUrl += "/";
+    }
   }
 
   return fullUrl;

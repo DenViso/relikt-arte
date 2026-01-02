@@ -17,6 +17,7 @@ import Button from "../../UI/Button";
 import DropDown from "../../UI/DropDown";
 import Loader from "../../UI/Loader";
 import Path from "../../UI/Path";
+import { DEFAULT_DOOR_SIZES, CATEGORIES_WITH_DEFAULT_SIZES } from "../../../constants/defaultSizes";
 
 const ProductSection = () => {
   const { product_id } = useParams();
@@ -37,17 +38,22 @@ const ProductSection = () => {
   // Завантаження продукту
   useEffect(() => {
     const getCurrentProduct = async () => {
+      if (!product_id) return;
+
       try {
-        if (!product && product_id) {
-          const newProduct = await getItems(`api/v1/product/${product_id}`);
-          setProduct(newProduct);
-        }
+        console.log("🔄 Loading product:", product_id);
+        const newProduct = await getItems(`api/v1/product/${product_id}`);
+        console.log("✅ Product loaded:", newProduct);
+        setProduct(newProduct);
       } catch (error) {
-        console.error("Error loading product:", error);
+        console.error("❌ Error loading product:", error);
         navigate(paths.buy);
       }
     };
-    getCurrentProduct();
+
+    if (!product) {
+      getCurrentProduct();
+    }
   }, [product_id, navigate, product]);
 
   // Завантаження додаткових даних після отримання продукту
@@ -56,84 +62,87 @@ const ProductSection = () => {
 
     setIsLoaded(false);
 
-    const getAllowedSizes = async () => {
-      // ВИПРАВЛЕННЯ: Перевірка на наявність category_id
-      if (!product.category_id) {
-        console.warn("Product category_id is undefined");
-        setIsLoaded(true);
-        return;
-      }
-
-      // Уникаємо повторного завантаження
-      if (allowedSizes.length > 0) {
-        setIsLoaded(true);
-        return;
-      }
-
+    const loadProductData = async () => {
       try {
-        let currentSizes: any = [];
-        const currentCategory = await getItems(
-          `api/v1/product/category/${product.category_id}/`
-        );
+        // Завантаження розмірів категорії
+        if (product.category_id && allowedSizes.length === 0) {
+          // СТАТИЧНІ РОЗМІРИ: Перевіряємо чи це категорія з дефолтними розмірами
+          if (CATEGORIES_WITH_DEFAULT_SIZES.includes(product.category_id)) {
+            console.log("📏 Using default door sizes");
+            setAllowedSizes(DEFAULT_DOOR_SIZES);
+          } else {
+            // Для інших категорій завантажуємо з API
+            console.log("🔄 Loading category sizes from API...");
+            const currentCategory = await getItems(
+              `api/v1/product/category/${product.category_id}`
+            );
 
-        const currentAllowedSizes = currentCategory?.allowed_sizes;
-
-        if (currentAllowedSizes?.length > 0) {
-          for (const sizeId of currentAllowedSizes) {
-            const sizeObject = await getItems(`api/v1/product/size/${sizeId}`);
-            if (sizeObject) currentSizes.push(sizeObject);
+            if (currentCategory?.allowed_sizes?.length > 0) {
+              const sizePromises = currentCategory.allowed_sizes.map((sizeId: number) =>
+                getItems(`api/v1/product/size/${sizeId}`)
+              );
+              const sizes = await Promise.all(sizePromises);
+              const validSizes = sizes.filter(Boolean);
+              setAllowedSizes(validSizes);
+              console.log("✅ Sizes loaded:", validSizes);
+            } else {
+              console.warn("⚠️ No allowed sizes for category");
+            }
           }
         }
-        setAllowedSizes(currentSizes);
+
+        // Налаштування фото
+        if (product.photos?.length > 0) {
+          setProductPhotos(product.photos);
+          const mainPhoto =
+            product.photos.find((p: ProductPhotoType) => p.is_main) ||
+            product.photos[0];
+
+          const photoPath = mainPhoto?.photo || "";
+
+          console.log("📸 Setting up photos:");
+          console.log("   - Photo path:", photoPath);
+          console.log("   - Full URL:", generateUrl(photoPath));
+
+          setCurrentPhoto(photoPath);
+        } else {
+          console.warn("⚠️ No photos found for product");
+        }
       } catch (error) {
-        console.error("Error loading allowed sizes:", error);
+        console.error("❌ Error loading product data:", error);
       } finally {
         setIsLoaded(true);
       }
     };
 
-    const setUpPhotos = () => {
-      if (product.photos && product.photos.length > 0) {
-        setProductPhotos(product.photos);
-        const mainPhoto =
-          product.photos.find((p: ProductPhotoType) => p.is_main) ||
-          product.photos[0];
-        setCurrentPhoto(mainPhoto?.photo || "");
-      } else {
-        setIsLoaded(true);
-      }
-    };
-
-    getAllowedSizes();
-    setUpPhotos();
-  }, [product]); // Видалено allowedSizes.length з залежностей
+    loadProductData();
+  }, [product]);
 
   const onChosen = (fieldName: string, value: any, field: string) => {
     const newPhoto = productPhotos.find((photo: any) => photo[field] === value);
-    if (newPhoto) setCurrentPhoto(newPhoto.photo);
+    if (newPhoto) {
+      console.log("🔄 Changing photo to:", newPhoto.photo);
+      setCurrentPhoto(newPhoto.photo);
+    }
     setValue(fieldName, value);
     setCurrentValues(getValues());
   };
 
   const handleData = async (data: any) => {
-    if (product) {
-      data.product_id = product.id;
-      if (data?.with_glass === false) delete data.glass_color_id;
+    if (!product) return;
+
+    data.product_id = product.id;
+    if (data?.with_glass === false) {
+      delete data.glass_color_id;
+    }
+    
+    try {
       await addCartItem(data);
+      console.log("✅ Item added to cart");
+    } catch (error) {
+      console.error("❌ Error adding to cart:", error);
     }
   };
-
-  useEffect(() => {
-  if (product?.photos && product.photos.length > 0) {
-    const mainPhoto = product.photos.find((p) => p.is_main) || product.photos[0];
-    const photoUrl = mainPhoto?.photo || "";
-    
-    console.log("🖼️ Original photo path:", photoUrl);
-    console.log("🔗 Generated URL:", generateUrl(photoUrl));
-    
-    setCurrentPhoto(photoUrl);
-  }
-}, [product]);
 
   return (
     <div className="product-section">
@@ -153,10 +162,13 @@ const ProductSection = () => {
             <div className="product-info-main-image">
               <img
                 src={currentPhoto ? generateUrl(currentPhoto) : noImage}
-                alt={product?.name}
-                className="product-info-main-image"
+                alt={product.name}
                 onError={(e) => {
+                  console.error("❌ Image failed to load:", currentPhoto);
                   (e.target as HTMLImageElement).src = noImage;
+                }}
+                onLoad={() => {
+                  console.log("✅ Image loaded successfully");
                 }}
               />
               <p className="small black sku">Артикул: {product.sku}</p>
@@ -169,7 +181,7 @@ const ProductSection = () => {
               </div>
 
               <div className="product-info-main-description-button">
-                <p className="upper black bold big">{product?.price} ₴</p>
+                <p className="upper black bold big">{product.price} ₴</p>
                 <Button
                   inversed={true}
                   additionalClasses={["upper"]}
@@ -184,7 +196,7 @@ const ProductSection = () => {
                   label="колір"
                   field="color_id"
                   options={{
-                    url: "api/v1/product/related/product_color/list/",
+                    url: "api/v1/product/related/product_color/list",
                     labelKey: "name",
                   }}
                   onChosen={(name: string, val: any) =>
@@ -203,7 +215,7 @@ const ProductSection = () => {
                   />
                 )}
 
-                {product?.have_glass && (
+                {product.have_glass && (
                   <>
                     <DropDown
                       label="наявність скла"
@@ -221,7 +233,7 @@ const ProductSection = () => {
                         label="колір скла"
                         field="glass_color_id"
                         options={{
-                          url: "api/v1/product/related/product_glass_color/list/",
+                          url: "api/v1/product/related/product_glass_color/list",
                           labelKey: "name",
                         }}
                         onChosen={(name: string, val: any) =>
