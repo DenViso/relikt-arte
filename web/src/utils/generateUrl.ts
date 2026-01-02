@@ -14,7 +14,7 @@ export const generateUrl = (targetUrl: string): string => {
   // ОБРОБКА СТАТИЧНИХ ФАЙЛІВ
   if (path.includes("/static/") || path.startsWith("/static")) {
     const staticPath = path.replace("/api/v1", "");
-    return `${cleanBase}${staticPath}`.replace(/([^:]\/)\/+/g, "$1");
+    return `${cleanBase}${staticPath}`.replaceAll(/([^:]\/)\/+/g, "$1");
   }
 
   // ОБРОБКА API ЗАПИТІВ
@@ -24,7 +24,7 @@ export const generateUrl = (targetUrl: string): string => {
     path = `${API_PREFIX}${path}`;
   }
 
-  let fullUrl = `${cleanBase}${path}`.replace(/([^:]\/)\/+/g, "$1");
+  let fullUrl = `${cleanBase}${path}`.replaceAll(/([^:]\/)\/+/g, "$1");
 
   // ВАЖЛИВО: Додаємо слеш ПЕРЕД query параметрами
   if (fullUrl.includes("?")) {
@@ -33,11 +33,12 @@ export const generateUrl = (targetUrl: string): string => {
     if (!urlPath.endsWith("/")) {
       fullUrl = `${urlPath}/?${queryString}`;
     }
-  } else {
     // Немає query параметрів - додаємо слеш в кінець
-    if (!fullUrl.endsWith("/")) {
+  } else if (!fullUrl.endsWith("/")) {
       fullUrl += "/";
-    }
+    
+    
+    
   }
 
   return fullUrl;
