@@ -24,11 +24,17 @@ class ProductDescriptionFinishing(BaseModel):
     covering: ProductDescriptionFinishingCovering
 
 
+# ✅ НОВИЙ КЛАС для details
+class ProductDetail(BaseModel):
+    value: str
+
+
 class ProductDescription(BaseModel):
     construction: Optional[ProductDescriptionConstruction] = None
     advantages: list[str] = []
     finishing: Optional[ProductDescriptionFinishing] = None
     text: Optional[str] = None
+    details: Optional[list[ProductDetail]] = []  # ← ДОДАНО!
 
 
 class ProductPhotoCreate(BaseModel):

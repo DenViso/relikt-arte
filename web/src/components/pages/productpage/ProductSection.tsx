@@ -19,6 +19,23 @@ import Loader from "../../UI/Loader";
 import Path from "../../UI/Path";
 import { DEFAULT_DOOR_SIZES, CATEGORIES_WITH_DEFAULT_SIZES } from "../../../constants/defaultSizes";
 
+// Helper функція для визначення типу характеристики
+const getDetailLabel = (value: string, index: number): string => {
+  const lower = value.toLowerCase();
+  
+  // Перевірка по ключовим словам
+  if (lower.includes('клас') || index === 0) return "Модель";
+  if (lower.includes('пвх') || lower.includes('шпон') || lower.includes('ламінат') || 
+      lower.includes('горіх') || lower.includes('дуб') || lower.includes('ясен')) return "Покриття";
+  if (lower.includes('полотно') || lower.includes('двер') || lower.includes('виріб')) return "Тип";
+  if (/\d+x\d+/.test(value) || /\d+×\d+/.test(value)) return "Розмір";
+  if (lower.includes('праве') || lower.includes('ліве')) return "Відкривання";
+  if (lower.includes('сатин') || lower.includes('матов') || lower.includes('глянець')) return "Оздоблення";
+  if (lower.includes('скло') || lower.includes('glass')) return "Скління";
+  
+  return `Деталь ${index + 1}`;
+};
+
 const ProductSection = () => {
   const { product_id } = useParams();
   const [product, setProduct] = useState<ProductType | undefined>(undefined);
@@ -35,26 +52,37 @@ const ProductSection = () => {
     dispatch(SetIsLoaded(value));
   };
 
+  // Helper для безпечного доступу до details
+  const productDetails = (product?.description as any)?.details as Array<{
+    value: string;
+  }> | undefined;
+
   // Завантаження продукту
-  useEffect(() => {
-    const getCurrentProduct = async () => {
-      if (!product_id) return;
+ useEffect(() => {
+  const getCurrentProduct = async () => {
+    if (!product_id) return;
 
-      try {
-        console.log("🔄 Loading product:", product_id);
-        const newProduct = await getItems(`api/v1/product/${product_id}`);
-        console.log("✅ Product loaded:", newProduct);
-        setProduct(newProduct);
-      } catch (error) {
-        console.error("❌ Error loading product:", error);
-        navigate(paths.buy);
-      }
-    };
-
-    if (!product) {
-      getCurrentProduct();
+    try {
+      console.log("🔄 Loading product:", product_id);
+      const newProduct = await getItems(`api/v1/product/${product_id}`);
+      console.log("✅ Product loaded:", newProduct);
+      
+      // 🔍 ДІАГНОСТИКА
+      console.log("📋 Description:", newProduct.description);
+      console.log("📋 Details:", newProduct.description?.details);
+      console.log("📋 Details length:", newProduct.description?.details?.length);
+      
+      setProduct(newProduct);
+    } catch (error) {
+      console.error("❌ Error loading product:", error);
+      navigate(paths.buy);
     }
-  }, [product_id, navigate, product]);
+  };
+
+  if (!product) {
+    getCurrentProduct();
+  }
+}, [product_id, navigate, product]);
 
   // Завантаження додаткових даних після отримання продукту
   useEffect(() => {
@@ -66,12 +94,10 @@ const ProductSection = () => {
       try {
         // Завантаження розмірів категорії
         if (product.category_id && allowedSizes.length === 0) {
-          // СТАТИЧНІ РОЗМІРИ: Перевіряємо чи це категорія з дефолтними розмірами
           if (CATEGORIES_WITH_DEFAULT_SIZES.includes(product.category_id)) {
             console.log("📏 Using default door sizes");
             setAllowedSizes(DEFAULT_DOOR_SIZES);
           } else {
-            // Для інших категорій завантажуємо з API
             console.log("🔄 Loading category sizes from API...");
             const currentCategory = await getItems(
               `api/v1/product/category/${product.category_id}`
@@ -92,7 +118,7 @@ const ProductSection = () => {
         }
 
         // Налаштування фото
-        if (product.photos?.length > 0) {
+        if (product.photos && product.photos.length > 0) {
           setProductPhotos(product.photos);
           const mainPhoto =
             product.photos.find((p: ProductPhotoType) => p.is_main) ||
@@ -101,7 +127,8 @@ const ProductSection = () => {
           const photoPath = mainPhoto?.photo || "";
 
           console.log("📸 Setting up photos:");
-          console.log("   - Photo path:", photoPath);
+          console.log("   - Total photos:", product.photos.length);
+          console.log("   - Main photo:", photoPath);
           console.log("   - Full URL:", generateUrl(photoPath));
 
           setCurrentPhoto(photoPath);
@@ -126,6 +153,12 @@ const ProductSection = () => {
     }
     setValue(fieldName, value);
     setCurrentValues(getValues());
+  };
+
+  // Функція для зміни поточного фото при кліку на мініатюру
+  const handlePhotoClick = (photoPath: string) => {
+    console.log("🖼️ Selecting photo:", photoPath);
+    setCurrentPhoto(photoPath);
   };
 
   const handleData = async (data: any) => {
@@ -160,9 +193,11 @@ const ProductSection = () => {
         <div className="product-info">
           <div className="product-info-main">
             <div className="product-info-main-image">
+              {/* Головне фото */}
               <img
                 src={currentPhoto ? generateUrl(currentPhoto) : noImage}
                 alt={product.name}
+                className="main-photo"
                 onError={(e) => {
                   console.error("❌ Image failed to load:", currentPhoto);
                   (e.target as HTMLImageElement).src = noImage;
@@ -171,6 +206,26 @@ const ProductSection = () => {
                   console.log("✅ Image loaded successfully");
                 }}
               />
+              
+              {/* Галерея мініатюр */}
+              {productPhotos.length > 1 && (
+                <div className="photo-gallery">
+                  {productPhotos.map((photo, index) => (
+                    <img
+                      key={photo.id || index}
+                      src={generateUrl(photo.photo)}
+                      alt={`${product.name} - фото ${index + 1}`}
+                      className={`thumbnail ${currentPhoto === photo.photo ? 'active' : ''}`}
+                      onClick={() => handlePhotoClick(photo.photo)}
+                      onError={(e) => {
+                        console.error("❌ Thumbnail failed to load:", photo.photo);
+                        (e.target as HTMLImageElement).src = noImage;
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+
               <p className="small black sku">Артикул: {product.sku}</p>
             </div>
 
@@ -178,6 +233,33 @@ const ProductSection = () => {
               <div className="product-info-main-description-principal">
                 <p className="upper black mid">{product.name}</p>
                 <p className="black small">{product?.description?.text}</p>
+
+                {/* ДЕТАЛЬНИЙ ОПИС З DOCX - З АВТОМАТИЧНИМИ ЛЕЙБЛАМИ */}
+                {productDetails && productDetails.length > 0 && (
+                  <div className="product-details">
+                    <h3 className="details-title">Характеристики</h3>
+                    <div className="details-list">
+                      {productDetails.map((detail, index) => (
+                        <div key={index} className="detail-item">
+                          <span className="detail-label">
+                            {getDetailLabel(detail.value, index)}:
+                          </span>
+                          <span className="detail-value">{detail.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* ПОКРИТТЯ (якщо є) */}
+                {product?.description?.finishing?.covering?.text && (
+                  <div className="product-finishing">
+                    <h3 className="finishing-title">Оздоблення</h3>
+                    <p className="finishing-text">
+                      <strong>Покриття:</strong> {product.description.finishing.covering.text}
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="product-info-main-description-button">
