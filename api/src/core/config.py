@@ -19,8 +19,8 @@ from .helpers import DotenvListHelper, load_environment
 class CorsSettings(BaseSettings):
     origins: str = Field(
         alias="cors_origins", 
-        # Додайте сюди всі можливі варіації через кому
-        default="https://localhost:3000,http://localhost:5173,https://relikt-arte.vercel.app,https://relikt.vercel.app"
+        # Додаємо адресу Netlify до списку
+        default="https://localhost:3000,http://localhost:5173,https://relikt-arte.vercel.app,https://relikt.vercel.app,https://relikt.netlify.app"
     )
 
     @field_validator("origins")

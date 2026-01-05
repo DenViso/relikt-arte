@@ -17,3 +17,5 @@ build
 .env
 .env.dev
 .env.prod
+.vercel
+.env*.local
